@@ -759,13 +759,18 @@ impl Domain for RemoteSshDomain {
 
         let writer = WriterWrapper::new(writer);
 
-        let terminal = wezterm_term::Terminal::new(
+        let mut terminal = wezterm_term::Terminal::new(
             size,
             std::sync::Arc::new(config::TermConfig::new()),
             "WezTerm",
             config::wezterm_version(),
             Box::new(writer.clone()),
         );
+
+        // Apply conpty quirks for SSH to Windows hosts
+        if self.dom.assume_windows_console {
+            terminal.enable_conpty_quirks();
+        }
 
         let pane: Arc<dyn Pane> = Arc::new(LocalPane::new(
             pane_id,

@@ -104,6 +104,11 @@ pub struct SshDomain {
 
     #[dynamic(default)]
     pub assume_shell: Shell,
+
+    /// If true, assume the remote host uses Windows conpty/conhost
+    /// and apply paste workarounds (force \r newlines).
+    #[dynamic(default)]
+    pub assume_windows_console: bool,
 }
 impl_lua_conversion_dynamic!(SshDomain);
 
