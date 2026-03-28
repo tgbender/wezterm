@@ -816,17 +816,25 @@ impl TerminalState {
     }
 
     /// Send text to the terminal that is the result of pasting.
-    /// If bracketed paste mode is enabled, the paste is enclosed
-    /// in the bracketing, otherwise it is fed to the writer as-is.
-    /// De-fang the text by removing any embedded bracketed paste
-    /// sequence that may be present.
+    /// If bracketed paste mode is enabled, or if ConPTY quirks are active,
+    /// the paste is enclosed in bracketed paste sequences. De-fangs the text
+    /// by removing any embedded bracketed paste sequences first.
+    ///
+    /// ConPTY/conhost requires two quirks regardless of whether the inner
+    /// application has negotiated bracketed paste mode: line endings must be
+    /// \r, and the paste must be wrapped in bracketed paste markers.
     pub fn send_paste(&mut self, text: &str) -> Result<(), Error> {
+        let use_bracketed = self.bracketed_paste || self.enable_conpty_quirks;
         let mut buf = String::new();
-        if self.bracketed_paste {
+        if use_bracketed {
             buf.push_str("\x1b[200~");
         }
 
-        let canon = if self.bracketed_paste {
+        let canon = if self.enable_conpty_quirks {
+            // Conpty/conhost expects \r; it handles routing to the inner app
+            // regardless of whether bracketed paste mode is active
+            NewlineCanon::CarriageReturn
+        } else if self.bracketed_paste {
             NewlineCanon::None
         } else {
             self.config.canonicalize_pasted_newlines()
@@ -836,7 +844,7 @@ impl TerminalState {
         let de_fanged = canon.replace("\x1b[200~", "").replace("\x1b[201~", "");
         buf.push_str(&de_fanged);
 
-        if self.bracketed_paste {
+        if use_bracketed {
             buf.push_str("\x1b[201~");
         }
 
